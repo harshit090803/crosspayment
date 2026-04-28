@@ -4,11 +4,24 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import { Mic, ArrowRight, Loader2, Info, CheckCircle2, QrCode, ScanLine, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { v4 as uuidv4 } from 'uuid';
 
 const PayInternational = () => {
   const { API_URL } = useAuth();
   const [activeTab, setActiveTab] = useState('generate'); // 'generate' or 'scan'
+  const [qrTokenAuth, setQrTokenAuth] = useState(null);
+
+  // Auto-switch to scan tab if token is in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      setActiveTab('scan');
+      setQrTokenAuth(token);
+      handleFetchTransaction(token);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   // ==============================
   // GENERATE QR STATE
@@ -108,7 +121,7 @@ const PayInternational = () => {
       
       if (res.data.success) {
         setGeneratedTx({
-          txId: res.data.txId,
+          qrToken: res.data.qrToken,
           expiresAt: res.data.expiresAt
         });
       }
@@ -118,7 +131,6 @@ const PayInternational = () => {
     setGeneratingQR(false);
   };
 
-// ... inside component
   // SCANNER EFFECT
   useEffect(() => {
     let html5QrCode;
@@ -126,37 +138,30 @@ const PayInternational = () => {
     if (activeTab === 'scan' && scanState === 'scanning') {
       const startScanner = async () => {
         try {
-          html5QrCode = new Html5Qrcode("reader");
-          await html5QrCode.start(
-            { facingMode: "environment" },
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 }
-            },
-            (decodedText) => {
-              if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().catch(console.error);
-              }
-              
-              try {
-                const data = JSON.parse(decodedText);
-                if (data.txId) {
-                  handleFetchTransaction(data.txId);
-                } else {
-                  setScanState('error');
-                  setScanError("Invalid QR format");
-                }
-              } catch (e) {
-                handleFetchTransaction(decodedText);
-              }
-            },
-            (errorMessage) => {
-              // Ignore normal scanning errors
+          const scanner = new Html5QrcodeScanner("reader", { 
+            qrbox: { width: 250, height: 250 }, 
+            fps: 10,
+          });
+          
+          scanner.render((result) => {
+            scanner.clear();
+            
+            // Extract token from URL if it's a URL, otherwise assume it's the raw token
+            let token = result;
+            try {
+              const url = new URL(result);
+              token = url.searchParams.get('token') || result;
+            } catch (e) {
+              // Not a valid URL, treat as raw token
             }
-          );
+            
+            setQrTokenAuth(token);
+            handleFetchTransaction(token);
+          }, (err) => {
+            // Ignore scan errors
+          });
         } catch (err) {
           console.error("Camera access error:", err);
-          // If camera fails, they can still use manual paste fallback
         }
       };
 
@@ -170,11 +175,15 @@ const PayInternational = () => {
     };
   }, [activeTab, scanState]);
 
-  const handleFetchTransaction = async (txId) => {
-    setScannedTxId(txId);
+  // ==============================
+  // 4. FETCH TRANSACTION
+  // ==============================
+  const handleFetchTransaction = async (token) => {
     setScanState('fetching');
     try {
-      const res = await axios.get(`${API_URL}/api/transaction/${txId}`);
+      const res = await axios.get(`${API_URL}/api/transaction/qr`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.data.success) {
         if (res.data.isExpired) {
           setScanState('error');
@@ -196,6 +205,7 @@ const PayInternational = () => {
   const handleManualPaste = (e) => {
     e.preventDefault();
     if (manualTxId.trim()) {
+      setQrTokenAuth(manualTxId.trim());
       handleFetchTransaction(manualTxId.trim());
     }
   };
@@ -226,12 +236,11 @@ const PayInternational = () => {
 
   const handleConfirmPayment = async () => {
     setConfirmingPayment(true);
-    const idempotencyKey = uuidv4();
     try {
       const res = await axios.post(
-        `${API_URL}/api/payment/confirm/${scannedTxId}`, 
+        `${API_URL}/api/payment/confirm/qr`, 
         {},
-        { headers: { 'Idempotency-Key': idempotencyKey } }
+        { headers: { Authorization: `Bearer ${qrTokenAuth}` } }
       );
       if (res.data.success) {
         playSuccessSound();
@@ -347,10 +356,10 @@ const PayInternational = () => {
           <div className="glassmorphism p-8 rounded-3xl inline-block mx-auto border border-slate-200 dark:border-slate-700 shadow-xl w-full">
             <h3 className="font-bold text-xl mb-4 text-blue-600 dark:text-blue-400">Scan to Pay</h3>
             
-            <div className="bg-white p-4 rounded-2xl mb-4 flex justify-center">
+            <div className="bg-white p-4 rounded-xl inline-block shadow-sm">
               <QRCodeSVG 
-                value={JSON.stringify({ txId: generatedTx.txId })} 
-                size={220}
+                value={`${window.location.origin}/pay/international?token=${generatedTx.qrToken}`} 
+                size={220} 
                 level="H"
                 includeMargin={true}
               />

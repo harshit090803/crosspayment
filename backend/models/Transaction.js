@@ -19,7 +19,8 @@ const transactionSchema = new mongoose.Schema({
   receiverName: { type: String, required: true },
   expiresAt: { type: Date, required: true },
   merchantId: { type: String, required: true, default: 'merchant_demo' },
-  idempotencyKey: { type: String, unique: true, sparse: true }
+  idempotencyKey: { type: String, unique: true, sparse: true },
+  usedTokens: [{ type: String }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

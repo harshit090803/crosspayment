@@ -7,7 +7,7 @@ const MOCK_MODE = process.env.STRIPE_SECRET_KEY ? false : true;
 
 const getTransactionById = async (req, res) => {
   try {
-    const { txId } = req.params;
+    const txId = req.qrData.txId;
     const transaction = await Transaction.findById(txId);
     
     if (!transaction) {
@@ -28,11 +28,12 @@ const getTransactionById = async (req, res) => {
 
 const confirmPayment = async (req, res) => {
   try {
-    const { txId } = req.params;
-    const idempotencyKey = req.headers['idempotency-key'];
-
-    if (!idempotencyKey) {
-      return res.status(400).json({ success: false, message: 'Idempotency-Key header required' });
+    const { txId, jti } = req.qrData;
+    
+    // Legacy support for non-QR confirmation if needed, but we removed it.
+    // Ensure we have a jti
+    if (!jti) {
+      return res.status(400).json({ success: false, message: 'Invalid QR token structure' });
     }
 
     const transaction = await Transaction.findById(txId);
@@ -41,15 +42,9 @@ const confirmPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Transaction not found' });
     }
 
-    if (transaction.idempotencyKey) {
-      if (transaction.idempotencyKey === idempotencyKey) {
-        return res.json({ success: true, message: 'Payment simulated successfully (Cached)', transaction });
-      } else {
-        return res.status(409).json({ success: false, message: 'Conflict: Transaction already processed with different idempotency key' });
-      }
+    if (transaction.usedTokens && transaction.usedTokens.includes(jti)) {
+      return res.json({ success: true, message: 'Payment already processed (idempotent response)', transaction });
     }
-
-    transaction.idempotencyKey = idempotencyKey;
 
     if (Date.now() > new Date(transaction.expiresAt).getTime()) {
       transaction.status = 'failed';
@@ -63,6 +58,8 @@ const confirmPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment already processed' });
     }
 
+    // Burn the JTI
+    transaction.usedTokens.push(jti);
     transaction.status = 'processing';
     await transaction.save();
 

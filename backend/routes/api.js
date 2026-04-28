@@ -27,8 +27,8 @@ router.post('/fx/convert', convert);
 router.post('/fx/lock-rate', authMiddleware, apiLimiter, lockRate);
 
 // Payment/Transaction Routes
-router.get('/transaction/:txId', getTransactionById);
-router.post('/payment/confirm/:txId', apiLimiter, confirmPayment);
+router.get('/transaction/qr', qrAuthMiddleware, getTransactionById);
+router.post('/payment/confirm/qr', qrAuthMiddleware, apiLimiter, confirmPayment);
 router.get('/transactions', authMiddleware, getTransactions);
 
 // Legacy

@@ -1,6 +1,10 @@
 const axios = require('axios');
 const Transaction = require('../models/Transaction');
 const Joi = require('joi');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const { JWT_SECRET } = require('../middleware/auth');
+const Joi = require('joi');
 
 const convertSchema = Joi.object({
   amount: Joi.number().positive().required(),
@@ -12,7 +16,7 @@ const lockRateSchema = Joi.object({
   amount: Joi.number().positive().required(),
   fromCurrency: Joi.string().length(3).required(),
   toCurrency: Joi.string().length(3).required(),
-  upiId: Joi.string().max(100).required(),
+  upiId: Joi.string().pattern(/^[\w.-]+@(chase|barclays|okhdfcbank|icici|paytm|googlepay)$|^[\w.-]+\.(us|uk)$/i).required(),
   receiverName: Joi.string().max(100).required()
 });
 
@@ -128,9 +132,17 @@ const lockRate = async (req, res) => {
 
     await transaction.save();
 
+    // Generate strict one-time QR Token
+    const jti = uuidv4();
+    const qrToken = jwt.sign(
+      { txId: transaction._id, jti },
+      JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
     res.json({
       success: true,
-      txId: transaction._id,
+      qrToken,
       expiresAt: transaction.expiresAt
     });
   } catch (error) {
