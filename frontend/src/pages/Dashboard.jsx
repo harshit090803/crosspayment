@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { ArrowRightLeft, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { useAuth } from '../context/AuthContext';
 
 const Dashboard = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const { token, API_URL } = useAuth();
+
   useEffect(() => {
+    if (!token) return;
+
     const fetchTransactions = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/transactions');
+        const res = await axios.get(`${API_URL}/api/transactions`);
         if (res.data.success) {
           setTransactions(res.data.transactions);
         }
@@ -21,10 +27,26 @@ const Dashboard = () => {
     };
     
     fetchTransactions();
-    // Auto refresh every 5 seconds for demo
-    const interval = setInterval(fetchTransactions, 5000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Setup Socket.IO connection
+    const socket = io(API_URL, {
+      auth: { token }
+    });
+
+    socket.on('transaction_updated', (updatedTx) => {
+      setTransactions(prev => {
+        const exists = prev.find(t => t._id === updatedTx._id);
+        if (exists) {
+          return prev.map(t => t._id === updatedTx._id ? updatedTx : t);
+        }
+        return [updatedTx, ...prev];
+      });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [token, API_URL]);
 
   const getStatusBadge = (status) => {
     switch(status) {

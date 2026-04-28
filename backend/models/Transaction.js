@@ -17,7 +17,9 @@ const transactionSchema = new mongoose.Schema({
   stripeClientSecret: { type: String },
   upiId: { type: String, required: true },
   receiverName: { type: String, required: true },
-  expiresAt: { type: Date, required: true }
+  expiresAt: { type: Date, required: true },
+  merchantId: { type: String, required: true, default: 'merchant_demo' },
+  idempotencyKey: { type: String, unique: true, sparse: true }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

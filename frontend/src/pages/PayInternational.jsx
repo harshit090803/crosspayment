@@ -3,8 +3,11 @@ import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import { Mic, ArrowRight, Loader2, Info, CheckCircle2, QrCode, ScanLine, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { v4 as uuidv4 } from 'uuid';
 
 const PayInternational = () => {
+  const { API_URL } = useAuth();
   const [activeTab, setActiveTab] = useState('generate'); // 'generate' or 'scan'
 
   // ==============================
@@ -66,7 +69,7 @@ const PayInternational = () => {
       setLoadingEstimate(true);
       try {
         const receiverCurrency = getReceiverCurrency(upiId);
-        const res = await axios.post('http://localhost:5000/api/fx/convert', {
+        const res = await axios.post(`${API_URL}/api/fx/convert`, {
           amount: parseFloat(amount),
           fromCurrency: currency,
           toCurrency: receiverCurrency
@@ -95,7 +98,7 @@ const PayInternational = () => {
     
     try {
       const receiverCurrency = getReceiverCurrency(upiId);
-      const res = await axios.post('http://localhost:5000/api/fx/lock-rate', {
+      const res = await axios.post(`${API_URL}/api/fx/lock-rate`, {
         amount: parseFloat(amount),
         fromCurrency: currency,
         toCurrency: receiverCurrency,
@@ -171,7 +174,7 @@ const PayInternational = () => {
     setScannedTxId(txId);
     setScanState('fetching');
     try {
-      const res = await axios.get(`http://localhost:5000/api/transaction/${txId}`);
+      const res = await axios.get(`${API_URL}/api/transaction/${txId}`);
       if (res.data.success) {
         if (res.data.isExpired) {
           setScanState('error');
@@ -223,15 +226,24 @@ const PayInternational = () => {
 
   const handleConfirmPayment = async () => {
     setConfirmingPayment(true);
+    const idempotencyKey = uuidv4();
     try {
-      const res = await axios.post(`http://localhost:5000/api/payment/confirm/${scannedTxId}`);
+      const res = await axios.post(
+        `${API_URL}/api/payment/confirm/${scannedTxId}`, 
+        {},
+        { headers: { 'Idempotency-Key': idempotencyKey } }
+      );
       if (res.data.success) {
         playSuccessSound();
         setScanState('success');
       }
     } catch (err) {
+      if (err.response?.status === 409) {
+        setScanError('Payment already processing. Please check dashboard.');
+      } else {
+        setScanError(err.response?.data?.message || 'Payment failed');
+      }
       setScanState('error');
-      setScanError(err.response?.data?.message || 'Payment failed');
     }
     setConfirmingPayment(false);
   };

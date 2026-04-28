@@ -1,5 +1,20 @@
 const axios = require('axios');
 const Transaction = require('../models/Transaction');
+const Joi = require('joi');
+
+const convertSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  fromCurrency: Joi.string().length(3).required(),
+  toCurrency: Joi.string().length(3).required()
+});
+
+const lockRateSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  fromCurrency: Joi.string().length(3).required(),
+  toCurrency: Joi.string().length(3).required(),
+  upiId: Joi.string().max(100).required(),
+  receiverName: Joi.string().max(100).required()
+});
 
 // Cache object
 let cache = {
@@ -40,10 +55,11 @@ const getRates = async (req, res) => {
 };
 
 const convert = async (req, res) => {
-  const { amount, fromCurrency, toCurrency } = req.body;
-  if (!amount || !fromCurrency || !toCurrency) {
-    return res.status(400).json({ success: false, message: 'Missing required parameters' });
+  const { error, value } = convertSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, message: error.details[0].message });
   }
+  const { amount, fromCurrency, toCurrency } = value;
   
   try {
     const data = await getRatesInternal();
@@ -74,11 +90,12 @@ const convert = async (req, res) => {
 };
 
 const lockRate = async (req, res) => {
-  const { amount, fromCurrency, toCurrency, upiId, receiverName } = req.body;
-  
-  if (!amount || !fromCurrency || !toCurrency || !upiId || !receiverName) {
-    return res.status(400).json({ success: false, message: 'Missing required parameters' });
+  const { error, value } = lockRateSchema.validate(req.body);
+  if (error) {
+    return res.status(400).json({ success: false, message: error.details[0].message });
   }
+  const { amount, fromCurrency, toCurrency, upiId, receiverName } = value;
+  const merchantId = req.user ? req.user.merchantId : 'merchant_demo';
 
   try {
     const data = await getRatesInternal();
@@ -105,6 +122,7 @@ const lockRate = async (req, res) => {
       status: 'pending',
       upiId,
       receiverName,
+      merchantId,
       expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
     });
 
