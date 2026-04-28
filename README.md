@@ -13,6 +13,39 @@ With CrossPay, an international user can pay using their local currency (USD, GB
 - **In-Browser Scanning**: Built-in HTML5 QR scanner allows users to simulate the complete dual-device checkout experience without needing native apps.
 - **Merchant Dashboard**: Real-time polling dashboard to track pending, processing, and successful payouts.
 
+## System Architecture & Trust Layer
+
+CrossPay enforces a **zero-trust frontend architecture**. The frontend is purely a presentation and scanning layer; all financial logic, FX locking, and transaction state lifecycles are strictly enforced by the Node.js backend.
+
+```mermaid
+sequenceDiagram
+    participant M as Merchant (Frontend)
+    participant U as User (Frontend)
+    participant B as CrossPay Backend
+    participant DB as MongoDB
+    participant FX as Frankfurter API
+
+    M->>B: 1. Request Payment (Amount, UPI ID)
+    B->>FX: 2. Fetch Live Exchange Rates
+    FX-->>B: 3. Return Rates
+    B->>DB: 4. Lock Rate, apply margin, create Pending Transaction
+    DB-->>B: 5. Return txId
+    B-->>M: 6. Serve txId
+    M->>M: 7. Render QR Code containing ONLY {"txId"}
+    
+    U->>M: 8. User Scans QR
+    U->>B: 9. Fetch Transaction Details (txId)
+    B->>DB: 10. Verify Expiry (10 mins) & Status
+    DB-->>B: 11. Return Safe Payload
+    B-->>U: 12. Show Locked Amount & Merchant Name
+    
+    U->>B: 13. Confirm Payment
+    B->>DB: 14. Update to 'Processing'
+    B->>B: 15. Enforce 2.5s simulated banking delay
+    B->>DB: 16. Update to 'Success'
+    B-->>U: 17. Return Success Confirmation
+```
+
 ## Tech Stack
 
 - **Frontend**: React, Vite, Tailwind CSS v4, Lucide React, HTML5-QRCode, QRCode.react

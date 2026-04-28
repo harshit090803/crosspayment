@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
-import { Mic, ArrowRight, Loader2, Info, CheckCircle2, QrCode, ScanLine, Clock, AlertTriangle } from 'lucide-react';
+import { Mic, ArrowRight, Loader2, Info, CheckCircle2, QrCode, ScanLine, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 const PayInternational = () => {
   const [activeTab, setActiveTab] = useState('generate'); // 'generate' or 'scan'
@@ -344,12 +344,20 @@ const PayInternational = () => {
               />
             </div>
             
-            <p className="font-bold text-xl mb-1">{receiverName}</p>
+            <p className="font-bold text-xl mb-1 flex items-center justify-center space-x-1">
+              <span>{receiverName}</span>
+              <CheckCircle2 size={16} className="text-blue-500 fill-blue-500/20" />
+            </p>
             <p className="text-slate-500 text-sm mb-4 font-mono">{upiId}</p>
 
-            <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl flex items-center justify-center space-x-2 text-sm text-slate-600 dark:text-slate-400">
+            <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl flex items-center justify-center space-x-2 text-sm text-slate-600 dark:text-slate-400 mb-3">
               <Clock size={16} />
               <span>Expires at {new Date(generatedTx.expiresAt).toLocaleTimeString()}</span>
+            </div>
+            
+            <div className="flex items-center justify-center space-x-1 text-xs text-emerald-600 dark:text-emerald-500 font-medium opacity-80 mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+              <ShieldCheck size={14} />
+              <span>Secured by CrossPay 256-bit Encryption</span>
             </div>
           </div>
 
@@ -418,8 +426,14 @@ const PayInternational = () => {
           {scanState === 'confirm' && scannedTxDetails && (
             <div className="glassmorphism p-6 rounded-3xl space-y-6">
               <div className="text-center pb-6 border-b border-slate-200 dark:border-slate-700">
-                <p className="text-sm text-slate-500 mb-1">Paying To</p>
-                <h2 className="text-2xl font-bold">{scannedTxDetails.receiverName}</h2>
+                <p className="text-sm text-slate-500 mb-1 flex items-center justify-center space-x-1">
+                  <ShieldCheck size={14} className="text-emerald-500" />
+                  <span>Verified CrossPay Merchant</span>
+                </p>
+                <h2 className="text-2xl font-bold flex items-center justify-center space-x-1">
+                  <span>{scannedTxDetails.receiverName}</span>
+                  <CheckCircle2 size={20} className="text-blue-500 fill-blue-500/20" />
+                </h2>
                 <p className="text-slate-500 font-mono text-sm">{scannedTxDetails.upiId}</p>
               </div>
 
