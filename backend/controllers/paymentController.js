@@ -47,13 +47,12 @@ const confirmPayment = async (req, res) => {
     transaction.status = 'processing';
     await transaction.save();
     
-    // Simulate processing delay
+    // Simulate processing delay to hold the HTTP connection (Emotional UX Realism)
     setTimeout(async () => {
       transaction.status = 'success';
       await transaction.save();
-    }, 2000);
-    
-    res.json({ success: true, message: 'Payment simulated successfully' });
+      res.json({ success: true, message: 'Payment simulated successfully' });
+    }, 2500);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -197,11 +197,36 @@ const PayInternational = () => {
     }
   };
 
+  const playSuccessSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      oscillator.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); // A6
+      
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.5);
+    } catch (e) {
+      console.log('Audio disabled', e);
+    }
+  };
+
   const handleConfirmPayment = async () => {
     setConfirmingPayment(true);
     try {
       const res = await axios.post(`http://localhost:5000/api/payment/confirm/${scannedTxId}`);
       if (res.data.success) {
+        playSuccessSound();
         setScanState('success');
       }
     } catch (err) {
@@ -421,15 +446,28 @@ const PayInternational = () => {
                 disabled={confirmingPayment}
                 className="w-full py-4 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/30 disabled:opacity-50 flex justify-center items-center"
               >
-                {confirmingPayment ? <Loader2 className="animate-spin" /> : `Confirm & Pay ${scannedTxDetails.amount} ${scannedTxDetails.currency}`}
+                {confirmingPayment ? 'Processing...' : `Confirm & Pay ${scannedTxDetails.amount} ${scannedTxDetails.currency}`}
               </button>
               
               <button 
                 onClick={() => setScanState('scanning')}
-                className="w-full text-center text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                disabled={confirmingPayment}
+                className="w-full text-center text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-50"
               >
                 Cancel
               </button>
+            </div>
+          )}
+
+          {confirmingPayment && (
+            <div className="fixed inset-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md z-50 flex flex-col items-center justify-center animate-in fade-in duration-300">
+              <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-6 shadow-xl shadow-blue-500/20">
+                <Loader2 size={48} className="animate-spin text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 className="text-3xl font-bold mb-2">Processing Payment</h2>
+              <p className="text-slate-500 animate-pulse text-lg">
+                Connecting securely to bank...
+              </p>
             </div>
           )}
 
